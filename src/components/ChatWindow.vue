@@ -63,15 +63,39 @@
           </div>
         </div>
         <div class="input-container">
-          <el-input v-model="userInput"
-                    type="textarea"
-                    :rows="3"
-                    placeholder="输入消息..."
-                    @keyup.enter.native="handleSendMessage">
-            <template slot="prefix">
-              <i class="el-icon-edit"></i>
-            </template>
-          </el-input>
+          <div class="suggestion-container">
+            <div class="input-wrapper">
+              <div class="textarea-container">
+                <el-input v-model="userInput"
+                          type="textarea"
+                          :rows="3"
+                          :autosize="{ minRows: 3, maxRows: 8 }"
+                          placeholder="输入消息..."
+                          @keyup.enter.native="handleSendMessage"
+                          @input="handleInput">
+                  <template slot="prefix">
+                    <i class="el-icon-edit"></i>
+                  </template>
+                </el-input>
+                <div v-if="showSuggestions"
+                     class="suggestions-list">
+                  <div class="suggestions-header">
+                    <i class="el-icon-magic-stick"></i>
+                    建议
+                  </div>
+                  <div class="suggestions-content">
+                    <div v-for="(suggestion, index) in suggestions"
+                         :key="index"
+                         class="suggestion-item"
+                         @click="selectSuggestion(suggestion)">
+                      <i class="el-icon-chat-dot-round"></i>
+                      {{ suggestion }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="button-container">
             <el-button type="primary"
                        :loading="isTyping"
@@ -100,6 +124,7 @@
 import HistorySidebar from './HistorySidebar.vue'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import { mapState, mapActions } from 'vuex'
+import apiService from '@/services/api'
 
 export default {
   name: 'ChatWindow',
@@ -112,6 +137,9 @@ export default {
       userInput: '',
       reasoningContent: '',
       isStreaming: false,
+      suggestions: [],
+      showSuggestions: false,
+      suggestionTimer: null,
     }
   },
   computed: {
@@ -144,6 +172,27 @@ export default {
       'loadConversations',
       'startNewChat',
     ]),
+    async handleInput() {
+      if (this.suggestionTimer) {
+        clearTimeout(this.suggestionTimer)
+      }
+
+      if (this.userInput.trim()) {
+        this.suggestionTimer = setTimeout(async () => {
+          const suggestions = await apiService.getSuggestions(this.userInput)
+          this.suggestions = suggestions
+          this.showSuggestions = true
+        }, 2000)
+      } else {
+        this.showSuggestions = false
+        this.suggestions = []
+      }
+    },
+    selectSuggestion(suggestion) {
+      this.userInput = suggestion
+      this.showSuggestions = false
+      this.suggestions = []
+    },
     async handleSendMessage() {
       if (!this.userInput.trim() || this.isTyping) return
       const message = this.userInput.trim()
@@ -893,6 +942,126 @@ export default {
 
     &:hover {
       background: @primary-color;
+    }
+  }
+}
+
+.suggestion-container {
+  position: relative;
+  width: 100%;
+
+  .input-wrapper {
+    position: relative;
+    width: 100%;
+  }
+
+  .textarea-container {
+    position: relative;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /deep/ .el-textarea {
+    .el-textarea__inner {
+      border-radius: @radius-md;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(192, 28, 32, 0.1);
+      transition: all 0.3s ease;
+      padding-bottom: 0;
+
+      &:hover,
+      &:focus {
+        border-color: @primary-color;
+        box-shadow: 0 0 0 2px rgba(192, 28, 32, 0.1);
+        background: rgba(255, 255, 255, 0.95);
+      }
+    }
+  }
+}
+
+.suggestions-list {
+  position: relative;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(192, 28, 32, 0.1);
+  border-top: none;
+  border-radius: 0 0 @radius-md @radius-md;
+  overflow: hidden;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  max-height: 200px;
+
+  .suggestions-header {
+    padding: @spacing-sm @spacing-md;
+    background: rgba(192, 28, 32, 0.05);
+    color: @primary-color;
+    font-size: 0.9em;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: @spacing-xs;
+    border-bottom: 1px solid rgba(192, 28, 32, 0.1);
+
+    i {
+      font-size: 1.1em;
+    }
+  }
+
+  .suggestions-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: @spacing-xs 0;
+
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(192, 28, 32, 0.2);
+      border-radius: 2px;
+
+      &:hover {
+        background: rgba(192, 28, 32, 0.3);
+      }
+    }
+  }
+}
+
+.suggestion-item {
+  padding: @spacing-sm @spacing-md;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.9em;
+  color: #606266;
+  display: flex;
+  align-items: center;
+  gap: @spacing-xs;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  i {
+    font-size: 1.1em;
+    color: @primary-color;
+    opacity: 0.8;
+  }
+
+  &:hover {
+    background: rgba(192, 28, 32, 0.05);
+    color: @primary-color;
+    padding-left: @spacing-lg;
+
+    i {
+      opacity: 1;
     }
   }
 }
